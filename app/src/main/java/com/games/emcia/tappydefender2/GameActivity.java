@@ -12,6 +12,12 @@ public class GameActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // Create an instance of our Tappy Defender View (TDView)
+        // Also passing in "this" which is the Context of our app
+        gameView = new TDView(this);
+        // Make our gameView the view for the Activity
+        setContentView(gameView);
+
     }
 
     // If the Activity is paused make sure to pause our thread
