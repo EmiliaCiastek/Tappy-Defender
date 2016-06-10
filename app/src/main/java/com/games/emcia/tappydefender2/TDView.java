@@ -1,14 +1,20 @@
 package com.games.emcia.tappydefender2;
 
 import android.content.Context;
+import android.content.res.AssetFileDescriptor;
+import android.content.res.AssetManager;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.media.AudioManager;
+import android.media.SoundPool;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
+import java.io.IOException;
 import java.util.ArrayList;
 
 /**
@@ -39,9 +45,37 @@ public class TDView extends SurfaceView implements Runnable {
     private int screenY;
     private Context context;
 
+    private boolean gameEnded;
+
+    private SoundPool soundPool;
+    int start = -1;
+    int bump = -1;
+    int destroyed = -1;
+    int win = -1;
+
     public TDView(Context context, int x, int y) {
         super(context);
         this.context = context;
+
+        // This SoundPool is deprecated but don't worry
+        soundPool = new SoundPool(10, AudioManager.STREAM_MUSIC,0);
+        try{
+            //Create objects of the 2 required classes
+            AssetManager assetManager = context.getAssets();
+            AssetFileDescriptor descriptor;
+            //create our three fx in memory ready for use
+            descriptor = assetManager.openFd("start.ogg");
+            start = soundPool.load(descriptor, 0);
+            descriptor = assetManager.openFd("win.ogg");
+            win = soundPool.load(descriptor, 0);
+            descriptor = assetManager.openFd("bump.ogg");
+            bump = soundPool.load(descriptor, 0);
+            descriptor = assetManager.openFd("destroyed.ogg");
+            destroyed = soundPool.load(descriptor, 0);
+        }catch(IOException e){
+            //Print an error message to the console
+            Log.e("error", "failed to load sound files");
+        }
 
         screenX = x;
         screenY = y;
@@ -69,6 +103,9 @@ public class TDView extends SurfaceView implements Runnable {
         timeTaken = 0;
         // Get start time
         timeStarted = System.currentTimeMillis();
+
+        gameEnded = false;
+        soundPool.play(start, 1, 1, 0, 0, 1);
     }
 
     @Override
@@ -100,9 +137,11 @@ public class TDView extends SurfaceView implements Runnable {
             hitDetected = true;
         }
         if(hitDetected) {
+            soundPool.play(bump, 1, 1, 0, 0, 1);
             player.reduceShieldStrength();
             if (player.getShieldStrength() < 0) {
-            //game over so do something
+                soundPool.play(destroyed, 1, 1, 0, 0, 1);
+                gameEnded = true;
             }
         }
 
@@ -115,6 +154,27 @@ public class TDView extends SurfaceView implements Runnable {
 
         for (SpaceDust sd : dustList) {
             sd.update(player.getSpeed());
+        }
+
+        if(!gameEnded) {
+            //subtract distance to home planet based on current speed
+            distanceRemaining -= player.getSpeed();
+            //How long has the player been flying
+            timeTaken = System.currentTimeMillis() - timeStarted;
+        }
+
+        //Completed the game!
+        if(distanceRemaining < 0) {
+            soundPool.play(win, 1, 1, 0, 0, 1);
+            //check for new fastest time
+            if (timeTaken < fastestTime) {
+                fastestTime = timeTaken;
+            }
+            // avoid ugly negative numbers
+            // in the HUD
+            distanceRemaining = 0;
+            // Now end the game
+            gameEnded = true;
         }
     }
 
@@ -136,12 +196,12 @@ public class TDView extends SurfaceView implements Runnable {
             // For debugging
             // Switch to white pixels
             paint.setColor(Color.argb(255, 255, 255, 255));
-            // Draw Hit boxes
-            canvas.drawRect(player.getHitbox().left,
+           // Draw Hit boxes
+            /*canvas.drawRect(player.getHitbox().left,
                     player.getHitbox().top,
                     player.getHitbox().right,
                     player.getHitbox().bottom,
-                    paint);
+                    paint);*/
             canvas.drawRect(enemy1.getHitbox().left,
                     enemy1.getHitbox().top,
                     enemy1.getHitbox().right,
@@ -165,16 +225,28 @@ public class TDView extends SurfaceView implements Runnable {
             canvas.drawBitmap(enemy1.getBitmap(), enemy1.getX(), enemy1.getY(), paint);
             canvas.drawBitmap(enemy2.getBitmap(), enemy2.getX(), enemy2.getY(), paint);
             canvas.drawBitmap(enemy3.getBitmap(), enemy3.getX(), enemy3.getY(), paint);
-
-            // Draw the hud
-            paint.setTextAlign(Paint.Align.LEFT);
-            paint.setColor(Color.argb(255, 255, 255, 255));
-            paint.setTextSize(25);
-            canvas.drawText("Fastest:" + fastestTime + "s", 10, 20, paint);
-            canvas.drawText("Time:" + timeTaken + "s", screenX / 2, 20, paint);
-            canvas.drawText("Distance:" + distanceRemaining / 1000 + " KM", screenX / 3, screenY - 20, paint);
-            canvas.drawText("Shield:" + player.getShieldStrength(), 10, screenY - 20, paint);
-            canvas.drawText("Speed:" + player.getSpeed() * 60 + " MPS", (screenX / 3) * 2, screenY - 20, paint);
+            if(!gameEnded){
+                // Draw the hud
+                paint.setTextAlign(Paint.Align.LEFT);
+                paint.setColor(Color.argb(255, 255, 255, 255));
+                paint.setTextSize(25);
+                canvas.drawText("Fastest:" + fastestTime + "s", 10, 20, paint);
+                canvas.drawText("Time:" + timeTaken + "s", screenX / 2, 20, paint);
+                canvas.drawText("Distance:" + distanceRemaining / 1000 + " KM", screenX / 3, screenY - 20, paint);
+                canvas.drawText("Shield:" + player.getShieldStrength(), 10, screenY - 20, paint);
+                canvas.drawText("Speed:" + player.getSpeed() * 60 + " MPS", (screenX / 3) * 2, screenY - 20, paint);
+            }else{
+                // Show pause screen
+                paint.setTextSize(80);
+                paint.setTextAlign(Paint.Align.CENTER);
+                canvas.drawText("Game Over", screenX/2, 100, paint);
+                paint.setTextSize(25);
+                canvas.drawText("Fastest:"+ fastestTime + "s", screenX/2, 160, paint);
+                canvas.drawText("Time:" + timeTaken + "s", screenX / 2, 200, paint);
+                canvas.drawText("Distance remaining:" + distanceRemaining/1000 + " KM",screenX/2, 240, paint);
+                paint.setTextSize(80);
+                canvas.drawText("Tap to replay!", screenX/2, 350, paint);
+            }
 
             // Unlock and draw the scene
             ourHolder.unlockCanvasAndPost(canvas);
@@ -218,6 +290,10 @@ public class TDView extends SurfaceView implements Runnable {
     // Has the player touched the screen?
             case MotionEvent.ACTION_DOWN:
                 player.setBoosting();
+                // If we are currently on the pause screen, start a new game
+                if(gameEnded){
+                    startGame();
+                }
                 break;
         }
         return true;
