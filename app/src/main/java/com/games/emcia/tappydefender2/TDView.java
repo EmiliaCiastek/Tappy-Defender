@@ -30,24 +30,45 @@ public class TDView extends SurfaceView implements Runnable {
     private Canvas canvas;
     private SurfaceHolder ourHolder;
 
+    private float distanceRemaining;
+    private long timeTaken;
+    private long timeStarted;
+    private long fastestTime;
+
+    private int screenX;
+    private int screenY;
+    private Context context;
+
     public TDView(Context context, int x, int y) {
         super(context);
+        this.context = context;
 
+        screenX = x;
+        screenY = y;
         // Initialize our drawing objects
         ourHolder = getHolder();
         paint = new Paint();
-        // Initialize our player ship
-        player = new PlayerShip(context, x, y);
-        enemy1 = new EnemyShip(context, x, y);
-        enemy2 = new EnemyShip(context, x, y);
-        enemy3 = new EnemyShip(context, x, y);
 
+        startGame();
+    }
+
+    private void startGame(){
+        //Initialize game objects
+        player = new PlayerShip(context, screenX, screenY);
+        enemy1 = new EnemyShip(context, screenX, screenY);
+        enemy2 = new EnemyShip(context, screenX, screenY);
+        enemy3 = new EnemyShip(context, screenX, screenY);
         int numSpecs = 40;
         for (int i = 0; i < numSpecs; i++) {
-            // Where will the dust spawn?
-            SpaceDust spec = new SpaceDust(x, y);
+        // Where will the dust spawn?
+            SpaceDust spec = new SpaceDust(screenX, screenY);
             dustList.add(spec);
         }
+        // Reset time and distance
+        distanceRemaining = 10000;// 10 km
+        timeTaken = 0;
+        // Get start time
+        timeStarted = System.currentTimeMillis();
     }
 
     @Override
@@ -65,17 +86,24 @@ public class TDView extends SurfaceView implements Runnable {
     // position which has just been drawn
         // If you are using images in excess of 100 pixels
     // wide then increase the -100 value accordingly
-        if(Rect.intersects
-                (player.getHitbox(), enemy1.getHitbox())){
+        boolean hitDetected = false;
+        if(Rect.intersects(player.getHitbox(), enemy1.getHitbox())){
             enemy1.setX(-100);
+            hitDetected = true;
         }
-        if(Rect.intersects
-                (player.getHitbox(), enemy2.getHitbox())){
+        if(Rect.intersects(player.getHitbox(), enemy2.getHitbox())){
             enemy2.setX(-100);
+            hitDetected = true;
         }
-        if(Rect.intersects
-                (player.getHitbox(), enemy3.getHitbox())){
+        if(Rect.intersects(player.getHitbox(), enemy3.getHitbox())){
             enemy3.setX(-100);
+            hitDetected = true;
+        }
+        if(hitDetected) {
+            player.reduceShieldStrength();
+            if (player.getShieldStrength() < 0) {
+            //game over so do something
+            }
         }
 
         // Update the player
@@ -135,8 +163,18 @@ public class TDView extends SurfaceView implements Runnable {
             canvas.drawBitmap(player.getBitmap(), player.getX(), player.getY(), paint);
 
             canvas.drawBitmap(enemy1.getBitmap(), enemy1.getX(), enemy1.getY(), paint);
-            canvas.drawBitmap(enemy2.getBitmap(),enemy2.getX(),enemy2.getY(), paint);
-            canvas.drawBitmap(enemy3.getBitmap(),enemy3.getX(),enemy3.getY(), paint);
+            canvas.drawBitmap(enemy2.getBitmap(), enemy2.getX(), enemy2.getY(), paint);
+            canvas.drawBitmap(enemy3.getBitmap(), enemy3.getX(), enemy3.getY(), paint);
+
+            // Draw the hud
+            paint.setTextAlign(Paint.Align.LEFT);
+            paint.setColor(Color.argb(255, 255, 255, 255));
+            paint.setTextSize(25);
+            canvas.drawText("Fastest:" + fastestTime + "s", 10, 20, paint);
+            canvas.drawText("Time:" + timeTaken + "s", screenX / 2, 20, paint);
+            canvas.drawText("Distance:" + distanceRemaining / 1000 + " KM", screenX / 3, screenY - 20, paint);
+            canvas.drawText("Shield:" + player.getShieldStrength(), 10, screenY - 20, paint);
+            canvas.drawText("Speed:" + player.getSpeed() * 60 + " MPS", (screenX / 3) * 2, screenY - 20, paint);
 
             // Unlock and draw the scene
             ourHolder.unlockCanvasAndPost(canvas);
